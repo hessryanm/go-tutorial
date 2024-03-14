@@ -90,7 +90,12 @@ func putHandler(c *fiber.Ctx, db *sql.DB) error {
 }
 
 func deleteHandler(c *fiber.Ctx, db *sql.DB) error {
-	return c.SendString("Not Implemented")
+	_, err := db.Exec("DELETE FROM todos WHERE item = $1", c.Query("item"))
+	if err != nil {
+		return handleError(c, err.Error())
+	}
+
+	return c.SendString("Deleted item " + c.Query("item"))
 }
 
 func main() {
