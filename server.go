@@ -11,6 +11,7 @@ import(
 
 type todo struct {
 	Item string
+	Done bool
 }
 
 func handleError(c *fiber.Ctx, errStr string) error {
@@ -32,7 +33,7 @@ func indexHandler(c *fiber.Ctx, db *sql.DB) error {
 	}
 
 	for rows.Next() {
-		rows.Scan(&res.Item)
+		rows.Scan(&res.Item, &res.Done)
 		todos = append(todos, res)
 	}
 
@@ -52,11 +53,40 @@ func postHandler(c *fiber.Ctx, db *sql.DB) error {
 		}
 	}
 
-	return c.Redirect("/")
+	return c.JSON(newTodo)
 }
 
 func putHandler(c *fiber.Ctx, db *sql.DB) error {
-	return c.SendString("Not Implemented")
+	m := c.Queries()
+	newTodo := todo{m["updateItem"], false}
+
+	newItem, hasNewItem := m["newItem"]
+	if hasNewItem {
+		newTodo.Item = newItem
+	}
+
+	done, hasDone := m["done"]
+	if hasDone && done == "true" {
+		newTodo.Done = true
+	}
+	parameters := []any{newTodo.Item}
+
+	queryStr := "UPDATE todos SET item = $1 "
+	if hasDone {
+		queryStr += ", done = $2 "
+		parameters = append(parameters, newTodo.Done)
+	}
+	queryStr += "WHERE item = $3"
+	parameters = append(parameters, m["updateItem"])
+
+	_, err := db.Exec(queryStr, parameters...)
+	if err != nil {
+		return handleError(c, err.Error())
+	}
+
+	err = db.QueryRow("SELECT * FROM todos WHERE item = $1", newTodo.Item).Scan(&newTodo.Item, &newTodo.Done)
+
+	return c.JSON(newTodo)
 }
 
 func deleteHandler(c *fiber.Ctx, db *sql.DB) error {
